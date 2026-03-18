@@ -1,0 +1,175 @@
+# Gaming Analytics Pipeline - Docker Compose Configuration
+# Apache Airflow + PostgreSQL Setup
+
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres-airflow:5432/airflow
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: 30
+    # Connection to your analytics database
+    AIRFLOW__CORE__DEFAULT_TIMEZONE: 'America/New_York'
+    # API Keys (loaded from .env file)
+    RAWG_API_KEY: ${RAWG_API_KEY}
+    TWITCH_CLIENT_ID: ${TWITCH_CLIENT_ID}
+    TWITCH_CLIENT_SECRET: ${TWITCH_CLIENT_SECRET}
+    REDDIT_CLIENT_ID: ${REDDIT_CLIENT_ID}
+    REDDIT_CLIENT_SECRET: ${REDDIT_CLIENT_SECRET}
+    REDDIT_USER_AGENT: ${REDDIT_USER_AGENT}
+    # Analytics database connection
+    ANALYTICS_DB_HOST: postgres-analytics
+    ANALYTICS_DB_PORT: 5432
+    ANALYTICS_DB_NAME: gaming_analytics
+    ANALYTICS_DB_USER: analytics
+    ANALYTICS_DB_PASSWORD: analytics123
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./sql:/opt/airflow/sql
+    - ./data:/opt/airflow/data
+    - ./logs:/opt/airflow/logs
+    - ./plugins:/opt/airflow/plugins
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on: &airflow-common-depends-on
+    postgres-airflow:
+      condition: service_healthy
+    postgres-analytics:
+      condition: service_healthy
+
+services:
+  # ============================================
+  # PostgreSQL for Airflow metadata
+  # ============================================
+  postgres-airflow:
+    image: postgres:15
+    container_name: postgres-airflow
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-airflow-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+    ports:
+      - "5433:5432"  # Exposed on 5433 to avoid conflicts
+
+  # ============================================
+  # PostgreSQL for Analytics Data (your data warehouse)
+  # ============================================
+  postgres-analytics:
+    image: postgres:15
+    container_name: postgres-analytics
+    environment:
+      POSTGRES_USER: analytics
+      POSTGRES_PASSWORD: analytics123
+      POSTGRES_DB: gaming_analytics
+    volumes:
+      - postgres-analytics-data:/var/lib/postgresql/data
+      - ./sql/schema:/docker-entrypoint-initdb.d  # Auto-run schema scripts on first start
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "analytics"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: always
+    ports:
+      - "5432:5432"  # Main port for your analytics DB
+
+  # ============================================
+  # Airflow Database Initialization
+  # ============================================
+  airflow-init:
+    <<: *airflow-common
+    container_name: airflow-init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /opt/airflow/{logs,dags,plugins,src,sql,data}
+        chown -R "${AIRFLOW_UID:-50000}:0" /opt/airflow/{logs,dags,plugins,src,sql,data}
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+    user: "0:0"
+
+  # ============================================
+  # Airflow Webserver (UI)
+  # ============================================
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================
+  # Airflow Scheduler
+  # ============================================
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: airflow-scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ============================================
+  # Airflow Triggerer (for deferrable operators)
+  # ============================================
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: airflow-triggerer
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: always
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+# ============================================
+# Persistent Volumes
+# ============================================
+volumes:
+  postgres-airflow-data:
+  postgres-analytics-data:
