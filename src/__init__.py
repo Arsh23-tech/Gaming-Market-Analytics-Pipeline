@@ -1,1 +1,1 @@
-# Extractors package 
+# Gaming Analytics Pipeline
