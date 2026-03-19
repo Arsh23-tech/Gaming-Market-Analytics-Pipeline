@@ -205,3 +205,18 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Environment variables (API keys)
+.env
+
+# Data files
+data/raw/*.csv
+data/staging/*.json
+
+# Power BI files
+*.pbix
+*.pbit
+
+# Docker volumes
+postgres_data/
+airflow_logs/
