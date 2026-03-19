@@ -2,7 +2,7 @@
 
 A production-ready ETL pipeline that analyzes gaming market trends by integrating data from RAWG (game metadata), Twitch (streaming viewership), and Reddit (community sentiment). Built with Apache Airflow for orchestration and Power BI for visualization.
 
-![Dashboard Preview](Dashboard.png)
+![Dashboard Preview](dashboard_preview.png)
 
 ---
 
@@ -238,11 +238,11 @@ python src/transformers/metrics_calculator.py
 
 ## Author
 
-**Arsh**
-- MS in Information Systems, Syracuse University (4.0 GPA)
+**Arsh Chandrakar**
+- MS in Information Systems, Syracuse University
 - Lean Six Sigma Green Belt
-- [LinkedIn](https://linkedin.com/in/yourprofile)
-- [Portfolio](https://yourusername.github.io)
+- [LinkedIn](https://www.linkedin.com/in/arsh-chandrakar/)
+- [Portfolio](https://arsh23-tech.github.io/)
 
 ---
 
