@@ -2,7 +2,7 @@
 
 A production-ready ETL pipeline that analyzes gaming market trends by integrating data from RAWG (game metadata), Twitch (streaming viewership), and Reddit (community sentiment). Built with Apache Airflow for orchestration and Power BI for visualization.
 
-![Dashboard Preview](dashboard_preview.png)
+![Dashboard Preview](docs/dashboard_preview.png)
 
 ---
 
